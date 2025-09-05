@@ -73,14 +73,16 @@ if uploaded_file:
     # Filter
     sportler_liste = sorted(df["sportler"].dropna().unique())
     wettkampf_liste = sorted(df["wettkampf"].dropna().unique())
+    strecke_liste = sorted(df["strecke"].dropna().unique())
     jahr_liste = sorted(df["wettkampfjahr"].dropna().unique())
 
     sportler = st.selectbox("Sportler/Boot wählen", sportler_liste if len(sportler_liste) > 0 else ["-"])
     wettkampf = st.multiselect("Wettkampf wählen", wettkampf_liste, default=wettkampf_liste if len(wettkampf_liste) > 0 else None)
+    strecke = st.multiselect("Strecke wählen", strecke_liste, default=strecke_liste if len(strecke_liste) > 0 else None)
     jahr = st.multiselect("Jahr wählen", jahr_liste, default=jahr_liste if len(jahr_liste) > 0 else None)
 
     # Daten filtern
-    gefiltert = df[(df["sportler"] == sportler) & (df["wettkampf"].isin(wettkampf)) & (df["wettkampfjahr"].isin(jahr))]
+    gefiltert = df[(df["sportler"] == sportler) & (df["wettkampf"].isin(wettkampf)) & (df["strecke"].isin(strecke)) & (df["wettkampfjahr"].isin(jahr))]
 
     if gefiltert.empty:
         st.warning("⚠️ Keine Daten für diese Auswahl gefunden.")
