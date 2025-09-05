@@ -84,20 +84,23 @@ if uploaded_file:
     # Daten filtern
     gefiltert = df[(df["sportler"] == sportler) & (df["wettkampf"].isin(wettkampf)) & (df["strecke"].isin(strecke)) & (df["wettkampfjahr"].isin(jahr))]
 
-    if gefiltert.empty:
-        st.warning("⚠️ Keine Daten für diese Auswahl gefunden.")
-    else:
-        fig = px.line(
-            gefiltert,
-            x="rennen",
-            y="sekunden",
-            color="wettkampf",
-            markers=True,
-            hover_data=["anzeigezeit", "platz", "strecke"],
-            title=f"Leistungsentwicklung von {sportler} ({active_sheet})"
-        )
-        fig.update_yaxes(title="Zeit (Sekunden)", autorange="reversed")
-        st.plotly_chart(fig, use_container_width=True)
+    # Hilfsspalte für X-Achse bauen
+    gefiltert = gefiltert.copy()
+    gefiltert["jahr_rennen"] = gefiltert["wettkampfjahr"].astype(str) + " - " + gefiltert["rennen"]
+
+    fig = px.line(
+        gefiltert,
+        x="jahr_rennen",
+        y="sekunden",
+        color="wettkampf",
+        markers=True,
+        hover_data=["anzeigezeit", "platz", "strecke", "wettkampfjahr", "rennen"],
+        title=f"Leistungsentwicklung von {sportler} ({active_sheet})"
+    )
+    fig.update_yaxes(title="Zeit (Sekunden)", autorange="reversed")
+    fig.update_xaxes(title="Jahr - Rennen")
+    st.plotly_chart(fig, use_container_width=True)
+
 
         st.subheader("📋 Gefilterte Daten")
         st.dataframe(gefiltert[["sportler", "wettkampfjahr", "wettkampf", "rennen", "strecke", "anzeigezeit", "platz"]])
