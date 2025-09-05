@@ -102,13 +102,13 @@ if uploaded_file:
             ordered=True
         )
 
-        # Plot: Scatter statt Line
+        # Plot: Scatter (Farbe = Sportler, Symbol = Wettkampf)
         fig = px.scatter(
             gefiltert,
             x="jahr_rennen",
             y="sekunden",
-            color="wettkampf",       # Farbe = Wettkampf
-            symbol="sportler",       # Symbol = Sportler
+            color="sportler",        # Farbe = Sportler
+            symbol="wettkampf",      # Markerform = Wettkampf
             hover_data=["sportler", "anzeigezeit", "platz", "strecke", "wettkampfjahr", "rennen"],
             title=f"Leistungsentwicklung ({active_sheet})"
         )
