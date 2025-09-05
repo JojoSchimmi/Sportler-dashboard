@@ -120,7 +120,7 @@ if uploaded_file:
             fig.add_trace(go.Scatter(
                 x=dsub["jahr_rennen"],
                 y=dsub["sekunden"],
-                mode="lines+markers",
+                mode="markers",
                 name=str(wk),
                 text=[f"{sekunden_zu_format(v)}" for v in dsub["sekunden"]],
                 hovertemplate=(
