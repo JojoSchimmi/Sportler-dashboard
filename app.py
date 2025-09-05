@@ -83,6 +83,7 @@ if uploaded_file:
 
     # Filterlisten
     sportler_liste = sorted(df["sportler"].dropna().unique())
+    sportler = st.multiselect("Sportler/Boot wählen", sportler_liste, default=sportler_liste[:1])
     wettkampf_liste = sorted(df["wettkampf"].dropna().unique())
     strecke_liste = sorted(df["strecke"].dropna().unique())
     jahr_liste = sorted(df["wettkampfjahr"].dropna().unique())
@@ -94,11 +95,11 @@ if uploaded_file:
 
     # Daten filtern
     gefiltert = df[
-        (df["sportler"] == sportler)
+        (df["sportler"].isin(sportler)) &
         & (df["wettkampf"].isin(wettkampf))
         & (df["strecke"].isin(strecke))
         & (df["wettkampfjahr"].isin(jahr))
-    ].copy()
+    ]
 
     # Nur gültige Zeilen zum Plotten (sekunden & jahr vorhanden)
     gefiltert["jahr_num"] = pd.to_numeric(gefiltert["wettkampfjahr"], errors="coerce")
@@ -121,6 +122,8 @@ if uploaded_file:
                 x=dsub["jahr_rennen"],
                 y=dsub["sekunden"],
                 mode="markers",
+                color="wettkampf",      
+                symbol="sportler",    
                 name=str(wk),
                 text=[f"{sekunden_zu_format(v)}" for v in dsub["sekunden"]],
                 hovertemplate=(
