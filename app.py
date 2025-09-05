@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import math
 
 st.set_page_config(page_title="Leistungsentwicklung Sportler", layout="wide")
 st.title("📊 Leistungsentwicklung im Kanu-Rennsport")
@@ -36,15 +37,38 @@ if uploaded_file:
         )
         st.stop()
 
-    # Zeit in Sekunden
+    # Hilfsfunktionen
     def zeit_zu_sekunden(zeit):
         try:
-            m, s = str(zeit).split(":")
-            return int(m) * 60 + float(s)
+            # Fall 1: Excel float (z. B. 0.00182...) -> Sekunden
+            if isinstance(zeit, (int, float)) and not math.isnan(zeit):
+                return float(zeit) * 24 * 3600  # Excel: 1 Tag = 1.0
+
+            # Fall 2: String mit : oder ,
+            s = str(zeit).replace(",", ".")
+            teile = s.split(":")
+            if len(teile) == 2:
+                m, sec = teile
+                return int(m) * 60 + float(sec)
+            elif len(teile) == 3:
+                h, m, sec = teile
+                return int(h) * 3600 + int(m) * 60 + float(sec)
+            else:
+                return None
         except:
             return None
 
-    df["sekunden"] = df["zeit"].astype(str).apply(zeit_zu_sekunden)
+    def sekunden_zu_format(sek):
+        if pd.isna(sek):
+            return None
+        m = int(sek // 60)
+        s = int(sek % 60)
+        hs = int(round((sek - int(sek)) * 100))
+        return f"{m}:{s:02d},{hs:02d}"
+
+    # Neue Spalten
+    df["sekunden"] = df["zeit"].apply(zeit_zu_sekunden)
+    df["anzeigezeit"] = df["sekunden"].apply(sekunden_zu_format)
 
     # Filter
     sportler_liste = sorted(df["sportler"].dropna().unique())
@@ -67,13 +91,11 @@ if uploaded_file:
             y="sekunden",
             color="wettkampf",
             markers=True,
-            hover_data=["zeit", "platz", "strecke"],
+            hover_data=["anzeigezeit", "platz", "strecke"],
             title=f"Leistungsentwicklung von {sportler} ({active_sheet})"
         )
         fig.update_yaxes(title="Zeit (Sekunden)", autorange="reversed")
         st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("📋 Gefilterte Daten")
-        st.dataframe(gefiltert)
-
-
+        st.dataframe(gefiltert[["sportler", "wettkampfjahr", "wettkampf", "rennen", "strecke", "anzeigezeit", "platz"]])
