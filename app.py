@@ -47,9 +47,13 @@ if uploaded_file:
     df["sekunden"] = df["zeit"].astype(str).apply(zeit_zu_sekunden)
 
     # Filter
-    sportler = st.selectbox("Sportler/Boot wählen", sorted(df["sportler"].dropna().unique()))
-    wettkampf = st.multiselect("Wettkampf wählen", sorted(df["wettkampf"].unique()), default=df["wettkampf"].unique())
-    jahr = st.multiselect("Jahr wählen", sorted(df["wettkampfjahr"].unique()), default=df["wettkampfjahr"].unique())
+    sportler_liste = sorted(df["sportler"].dropna().unique())
+    wettkampf_liste = sorted(df["wettkampf"].dropna().unique())
+    jahr_liste = sorted(df["wettkampfjahr"].dropna().unique())
+
+    sportler = st.selectbox("Sportler/Boot wählen", sportler_liste if len(sportler_liste) > 0 else ["-"])
+    wettkampf = st.multiselect("Wettkampf wählen", wettkampf_liste, default=wettkampf_liste if len(wettkampf_liste) > 0 else None)
+    jahr = st.multiselect("Jahr wählen", jahr_liste, default=jahr_liste if len(jahr_liste) > 0 else None)
 
     # Daten filtern
     gefiltert = df[(df["sportler"] == sportler) & (df["wettkampf"].isin(wettkampf)) & (df["wettkampfjahr"].isin(jahr))]
@@ -71,4 +75,5 @@ if uploaded_file:
 
         st.subheader("📋 Gefilterte Daten")
         st.dataframe(gefiltert)
+
 
