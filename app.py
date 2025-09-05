@@ -41,7 +41,6 @@ if uploaded_file:
         try:
             if isinstance(zeit, (int, float)) and not math.isnan(zeit):
                 return float(zeit) * 24 * 3600  # Excel: 1 Tag = 1.0
-
             s = str(zeit).replace(",", ".")
             teile = s.split(":")
             if len(teile) == 2:
@@ -92,13 +91,20 @@ if uploaded_file:
         # Hilfsspalte für X-Achse (Jahr - Rennen)
         gefiltert = gefiltert.copy()
         gefiltert["jahr_rennen"] = gefiltert["wettkampfjahr"].astype(str) + " - " + gefiltert["rennen"].astype(str)
-        
-        # Nur gültige Werte (keine NaN) berücksichtigen
-        valid_vals = [x for x in gefiltert["jahr_rennen"].dropna().unique() if " - " in x]
-        
-        # Sortierung: erst Jahr numerisch, dann Rennname
-        sorted_vals = sorted(valid_vals, key=lambda x: (int(x.split(" - ")[0]), x.split(" - ")[1]))
-        
+
+        # Nur gültige Werte (keine NaN und nur numerische Jahre)
+        valid_vals = []
+        for x in gefiltert["jahr_rennen"].dropna().unique():
+            try:
+                jahr_str, rennen_str = x.split(" - ", 1)
+                jahr_int = int(jahr_str)
+                valid_vals.append((jahr_int, rennen_str, x))
+            except:
+                continue
+
+        # Sortieren: Jahr numerisch, dann Rennname
+        sorted_vals = [v[2] for v in sorted(valid_vals, key=lambda t: (t[0], t[1]))]
+
         # Categorical-Achse setzen
         gefiltert["jahr_rennen"] = pd.Categorical(
             gefiltert["jahr_rennen"],
@@ -132,5 +138,3 @@ if uploaded_file:
         st.dataframe(
             gefiltert[["sportler", "wettkampfjahr", "wettkampf", "rennen", "strecke", "anzeigezeit", "platz"]]
         )
-
-
