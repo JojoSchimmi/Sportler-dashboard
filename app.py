@@ -1,7 +1,9 @@
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
 import plotly.express as px
 import math
+import numpy as np
 
 st.set_page_config(page_title="Leistungsentwicklung Sportler", layout="wide")
 st.title("📊 Leistungsentwicklung im Kanu-Rennsport")
@@ -39,18 +41,19 @@ if uploaded_file:
     # Hilfsfunktionen
     def zeit_zu_sekunden(zeit):
         try:
+            # Excel float (Anteil eines Tages)
             if isinstance(zeit, (int, float)) and not math.isnan(zeit):
-                return float(zeit) * 24 * 3600  # Excel: 1 Tag = 1.0
-            s = str(zeit).replace(",", ".")
+                return float(zeit) * 24 * 3600
+            # String-Parsing
+            s = str(zeit).strip().replace(",", ".")
             teile = s.split(":")
             if len(teile) == 2:
                 m, sec = teile
                 return int(m) * 60 + float(sec)
-            elif len(teile) == 3:
+            if len(teile) == 3:
                 h, m, sec = teile
                 return int(h) * 3600 + int(m) * 60 + float(sec)
-            else:
-                return None
+            return None
         except:
             return None
 
@@ -62,11 +65,23 @@ if uploaded_file:
         hs = int(round((sek - int(sek)) * 100))
         return f"{m}:{s:02d},{hs:02d}"
 
+    def rennen_rank(r):
+        if not isinstance(r, str):
+            return 99
+        rl = r.strip().lower()
+        if rl.startswith("vorlauf") or "vorlauf" in rl:
+            return 0
+        if any(k in rl for k in ["zwischen", "halbfinal", "semi"]):
+            return 1
+        if any(k in rl for k in ["end", "final"]):
+            return 2
+        return 9
+
     # Neue Spalten
     df["sekunden"] = df["zeit"].apply(zeit_zu_sekunden)
     df["anzeigezeit"] = df["sekunden"].apply(sekunden_zu_format)
 
-    # Filter
+    # Filterlisten
     sportler_liste = sorted(df["sportler"].dropna().unique())
     wettkampf_liste = sorted(df["wettkampf"].dropna().unique())
     strecke_liste = sorted(df["strecke"].dropna().unique())
@@ -83,54 +98,59 @@ if uploaded_file:
         & (df["wettkampf"].isin(wettkampf))
         & (df["strecke"].isin(strecke))
         & (df["wettkampfjahr"].isin(jahr))
-    ]
+    ].copy()
+
+    # Nur gültige Zeilen zum Plotten (sekunden & jahr vorhanden)
+    gefiltert["jahr_num"] = pd.to_numeric(gefiltert["wettkampfjahr"], errors="coerce")
+    gefiltert = gefiltert.dropna(subset=["sekunden", "jahr_num", "rennen"])  # ohne gültige Zeit/Jahr kein Plot
 
     if gefiltert.empty:
         st.warning("⚠️ Keine Daten für diese Auswahl gefunden.")
     else:
-        # Hilfsspalte für X-Achse (Jahr - Rennen)
-        gefiltert = gefiltert.copy()
-        gefiltert["jahr_rennen"] = gefiltert["wettkampfjahr"].astype(str) + " - " + gefiltert["rennen"].astype(str)
+        # X-Achse: Jahr – Rennen (chronologisch, Rennen-Reihenfolge: Vorlauf → Zwischenlauf → Endlauf)
+        gefiltert["rennen_order"] = gefiltert["rennen"].apply(rennen_rank)
+        gefiltert = gefiltert.sort_values(["jahr_num", "rennen_order", "rennen"][0:3])
+        gefiltert["jahr_rennen"] = gefiltert["jahr_num"].astype(int).astype(str) + " – " + gefiltert["rennen"].astype(str)
 
-        # Nur gültige Werte (keine NaN und nur numerische Jahre)
-        valid_vals = []
-        for x in gefiltert["jahr_rennen"].dropna().unique():
-            try:
-                jahr_str, rennen_str = x.split(" - ", 1)
-                jahr_int = int(jahr_str)
-                valid_vals.append((jahr_int, rennen_str, x))
-            except:
-                continue
+        x_categories = list(dict.fromkeys(gefiltert["jahr_rennen"].tolist()))  # Reihenfolge beibehalten
 
-        # Sortieren: Jahr numerisch, dann Rennname
-        sorted_vals = [v[2] for v in sorted(valid_vals, key=lambda t: (t[0], t[1]))]
+        # Plot mit Linien + Markern, getrennt nach Wettkampf
+        fig = go.Figure()
+        for wk, dsub in gefiltert.groupby("wettkampf"):
+            fig.add_trace(go.Scatter(
+                x=dsub["jahr_rennen"],
+                y=dsub["sekunden"],
+                mode="lines+markers",
+                name=str(wk),
+                text=[f"{sekunden_zu_format(v)}" for v in dsub["sekunden"]],
+                hovertemplate=(
+                    "<b>%{fullData.name}</b><br>" +
+                    "Jahr – Rennen: %{x}<br>" +
+                    "Zeit: %{text}<br>" +
+                    "Strecke: %{customdata[0]}<br>" +
+                    "Platz: %{customdata[1]}<extra></extra>"
+                ),
+                customdata=np.stack([dsub["strecke"], dsub["platz"]], axis=-1)
+            ))
 
-        # Categorical-Achse setzen
-        gefiltert["jahr_rennen"] = pd.Categorical(
-            gefiltert["jahr_rennen"],
-            categories=sorted_vals,
-            ordered=True
-        )
+        # Y-Achse als mm:ss,hs formatieren mit gleichmäßigen Ticks
+        y_min = float(gefiltert["sekunden"].min())
+        y_max = float(gefiltert["sekunden"].max())
+        # sinnvolle Schrittweite: 2s bei kleiner Range, sonst 5s
+        step = 2 if (y_max - y_min) <= 30 else 5
+        start = math.floor(y_min / step) * step
+        end = math.ceil(y_max / step) * step
+        tick_vals = list(np.arange(start, end + 0.0001, step))
+        tick_texts = [sekunden_zu_format(v) for v in tick_vals]
 
-        # Plot erstellen
-        fig = px.line(
-            gefiltert,
-            x="jahr_rennen",
-            y="sekunden",
-            color="wettkampf",
-            markers=True,
-            hover_data=["anzeigezeit", "platz", "strecke", "wettkampfjahr", "rennen"],
+        fig.update_layout(
+            xaxis=dict(title="Jahr – Rennen", type="category", categoryorder="array", categoryarray=x_categories),
+            yaxis=dict(title="Zeit (min:sek,hundertstel)", autorange="reversed", tickmode="array", tickvals=tick_vals, ticktext=tick_texts),
+            legend=dict(title="Wettkampf"),
+            margin=dict(l=10, r=10, t=60, b=10),
             title=f"Leistungsentwicklung von {sportler} ({active_sheet})"
         )
 
-        # Y-Achse hübsch formatieren (M:SS,HS statt Sekunden)
-        tick_vals = gefiltert["sekunden"].dropna().unique()
-        tick_vals = sorted(tick_vals)
-        tick_texts = [sekunden_zu_format(v) for v in tick_vals]
-        fig.update_yaxes(title="Zeit (min:sek,hundertstel)", autorange="reversed",
-                         tickmode="array", tickvals=tick_vals, ticktext=tick_texts)
-
-        fig.update_xaxes(title="Jahr - Rennen")
         st.plotly_chart(fig, use_container_width=True)
 
         # Tabelle darunter
