@@ -91,12 +91,18 @@ if uploaded_file:
     else:
         # Hilfsspalte für X-Achse (Jahr - Rennen)
         gefiltert = gefiltert.copy()
-        gefiltert["jahr_rennen"] = gefiltert["wettkampfjahr"].astype(str) + " - " + gefiltert["rennen"]
-
-        # Sortierung der X-Achse (Jahr chronologisch, Rennen-Reihenfolge bleibt wie in der Tabelle)
+        gefiltert["jahr_rennen"] = gefiltert["wettkampfjahr"].astype(str) + " - " + gefiltert["rennen"].astype(str)
+        
+        # Nur gültige Werte (keine NaN) berücksichtigen
+        valid_vals = [x for x in gefiltert["jahr_rennen"].dropna().unique() if " - " in x]
+        
+        # Sortierung: erst Jahr numerisch, dann Rennname
+        sorted_vals = sorted(valid_vals, key=lambda x: (int(x.split(" - ")[0]), x.split(" - ")[1]))
+        
+        # Categorical-Achse setzen
         gefiltert["jahr_rennen"] = pd.Categorical(
             gefiltert["jahr_rennen"],
-            categories=sorted(gefiltert["jahr_rennen"].unique(), key=lambda x: (int(x.split(" - ")[0]), x.split(" - ")[1])),
+            categories=sorted_vals,
             ordered=True
         )
 
