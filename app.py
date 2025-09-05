@@ -28,7 +28,6 @@ if uploaded_file:
 
     # Erwartete Spalten
     benoetigte_spalten = {"sportler", "wettkampfjahr", "wettkampf", "rennen", "strecke", "zeit", "platz"}
-
     if not benoetigte_spalten.issubset(df.columns):
         st.error(
             f"⚠️ Im Sheet '{active_sheet}' fehlen benötigte Spalten.\n"
@@ -82,25 +81,37 @@ if uploaded_file:
     jahr = st.multiselect("Jahr wählen", jahr_liste, default=jahr_liste if len(jahr_liste) > 0 else None)
 
     # Daten filtern
-    gefiltert = df[(df["sportler"] == sportler) & (df["wettkampf"].isin(wettkampf)) & (df["strecke"].isin(strecke)) & (df["wettkampfjahr"].isin(jahr))]
+    gefiltert = df[
+        (df["sportler"] == sportler)
+        & (df["wettkampf"].isin(wettkampf))
+        & (df["strecke"].isin(strecke))
+        & (df["wettkampfjahr"].isin(jahr))
+    ]
 
-    # Hilfsspalte für X-Achse bauen
-    gefiltert = gefiltert.copy()
-    gefiltert["jahr_rennen"] = gefiltert["wettkampfjahr"].astype(str) + " - " + gefiltert["rennen"]
+    if gefiltert.empty:
+        st.warning("⚠️ Keine Daten für diese Auswahl gefunden.")
+    else:
+        # Hilfsspalte für X-Achse bauen (Jahr + Rennen)
+        gefiltert = gefiltert.copy()
+        gefiltert["jahr_rennen"] = gefiltert["wettkampfjahr"].astype(str) + " - " + gefiltert["rennen"]
 
-    fig = px.line(
-        gefiltert,
-        x="jahr_rennen",
-        y="sekunden",
-        color="wettkampf",
-        markers=True,
-        hover_data=["anzeigezeit", "platz", "strecke", "wettkampfjahr", "rennen"],
-        title=f"Leistungsentwicklung von {sportler} ({active_sheet})"
-    )
-    fig.update_yaxes(title="Zeit (Sekunden)", autorange="reversed")
-    fig.update_xaxes(title="Jahr - Rennen")
-    st.plotly_chart(fig, use_container_width=True)
+        # Plot erstellen
+        fig = px.line(
+            gefiltert,
+            x="jahr_rennen",
+            y="sekunden",
+            color="wettkampf",
+            markers=True,
+            hover_data=["anzeigezeit", "platz", "strecke", "wettkampfjahr", "rennen"],
+            title=f"Leistungsentwicklung von {sportler} ({active_sheet})"
+        )
+        fig.update_yaxes(title="Zeit (Sekunden)", autorange="reversed")
+        fig.update_xaxes(title="Jahr - Rennen")
+        st.plotly_chart(fig, use_container_width=True)
 
-
+        # Tabelle darunter
         st.subheader("📋 Gefilterte Daten")
-        st.dataframe(gefiltert[["sportler", "wettkampfjahr", "wettkampf", "rennen", "strecke", "anzeigezeit", "platz"]])
+        st.dataframe(
+            gefiltert[["sportler", "wettkampfjahr", "wettkampf", "rennen", "strecke", "anzeigezeit", "platz"]]
+        )
+
