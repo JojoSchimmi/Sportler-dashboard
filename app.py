@@ -39,11 +39,9 @@ if uploaded_file:
     # Hilfsfunktionen
     def zeit_zu_sekunden(zeit):
         try:
-            # Fall 1: Excel float (z. B. 0.00182...) -> Sekunden
             if isinstance(zeit, (int, float)) and not math.isnan(zeit):
                 return float(zeit) * 24 * 3600  # Excel: 1 Tag = 1.0
 
-            # Fall 2: String mit : oder ,
             s = str(zeit).replace(",", ".")
             teile = s.split(":")
             if len(teile) == 2:
@@ -91,9 +89,16 @@ if uploaded_file:
     if gefiltert.empty:
         st.warning("⚠️ Keine Daten für diese Auswahl gefunden.")
     else:
-        # Hilfsspalte für X-Achse bauen (Jahr + Rennen)
+        # Hilfsspalte für X-Achse (Jahr - Rennen)
         gefiltert = gefiltert.copy()
         gefiltert["jahr_rennen"] = gefiltert["wettkampfjahr"].astype(str) + " - " + gefiltert["rennen"]
+
+        # Sortierung der X-Achse (Jahr chronologisch, Rennen-Reihenfolge bleibt wie in der Tabelle)
+        gefiltert["jahr_rennen"] = pd.Categorical(
+            gefiltert["jahr_rennen"],
+            categories=sorted(gefiltert["jahr_rennen"].unique(), key=lambda x: (int(x.split(" - ")[0]), x.split(" - ")[1])),
+            ordered=True
+        )
 
         # Plot erstellen
         fig = px.line(
@@ -105,7 +110,14 @@ if uploaded_file:
             hover_data=["anzeigezeit", "platz", "strecke", "wettkampfjahr", "rennen"],
             title=f"Leistungsentwicklung von {sportler} ({active_sheet})"
         )
-        fig.update_yaxes(title="Zeit (Sekunden)", autorange="reversed")
+
+        # Y-Achse hübsch formatieren (M:SS,HS statt Sekunden)
+        tick_vals = gefiltert["sekunden"].dropna().unique()
+        tick_vals = sorted(tick_vals)
+        tick_texts = [sekunden_zu_format(v) for v in tick_vals]
+        fig.update_yaxes(title="Zeit (min:sek,hundertstel)", autorange="reversed",
+                         tickmode="array", tickvals=tick_vals, ticktext=tick_texts)
+
         fig.update_xaxes(title="Jahr - Rennen")
         st.plotly_chart(fig, use_container_width=True)
 
@@ -114,4 +126,5 @@ if uploaded_file:
         st.dataframe(
             gefiltert[["sportler", "wettkampfjahr", "wettkampf", "rennen", "strecke", "anzeigezeit", "platz"]]
         )
+
 
