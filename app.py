@@ -113,17 +113,26 @@ if uploaded_file:
             title=f"Leistungsentwicklung ({active_sheet})"
         )
 
-        # Y-Achse hübsch formatieren (M:SS,HS)
-        tick_vals = gefiltert["sekunden"].dropna().unique()
-        tick_vals = sorted(tick_vals)
-        tick_texts = [sekunden_zu_format(v) for v in tick_vals]
-        fig.update_yaxes(
-            title="Zeit (min:sek,hundertstel)",
-            autorange="reversed",
-            tickmode="array",
-            tickvals=tick_vals,
-            ticktext=tick_texts
-        )
+        # Y-Achse hübsch formatieren (M:SS,HS) mit festen 10s-Schritten
+        if not gefiltert["sekunden"].dropna().empty:
+            min_val = gefiltert["sekunden"].min()
+            max_val = gefiltert["sekunden"].max()
+
+            # Immer etwas Puffer einbauen
+            min_tick = math.floor(min_val / 10) * 10
+            max_tick = math.ceil(max_val / 10) * 10
+
+            tick_vals = list(range(min_tick, max_tick + 10, 10))
+            tick_texts = [sekunden_zu_format(v) for v in tick_vals]
+
+            fig.update_yaxes(
+                title="Zeit (min:sek,hundertstel)",
+                autorange="reversed",
+                tickmode="array",
+                tickvals=tick_vals,
+                ticktext=tick_texts
+            )
+
 
         fig.update_xaxes(title="Jahr - Rennen")
         st.plotly_chart(fig, use_container_width=True)
