@@ -92,10 +92,15 @@ if uploaded_file:
     else:
         # Hilfsspalte für X-Achse (Jahr - Rennen)
         gefiltert = gefiltert.copy()
-        gefiltert["jahr_rennen"] = gefiltert["wettkampfjahr"].astype(str) + " - " + gefiltert["rennen"].astype(str)
 
-        # Sortierung: Jahr + Rennen
-        gefiltert = gefiltert.sort_values(["wettkampfjahr", "rennen"])
+        # Sortierreihenfolge für Rennen
+        rennen_order = {"Vorlauf": 1, "Zwischenlauf": 2, "Endlauf": 3}
+
+        gefiltert["rennen_sort"] = gefiltert["rennen"].map(rennen_order).fillna(99)
+        gefiltert = gefiltert.sort_values(["wettkampfjahr", "rennen_sort", "rennen"])
+
+        # X-Achse: Jahr - Rennen
+        gefiltert["jahr_rennen"] = gefiltert["wettkampfjahr"].astype(str) + " - " + gefiltert["rennen"].astype(str)
         gefiltert["jahr_rennen"] = pd.Categorical(
             gefiltert["jahr_rennen"],
             categories=gefiltert["jahr_rennen"].unique(),
@@ -113,14 +118,14 @@ if uploaded_file:
             title=f"Leistungsentwicklung ({active_sheet})"
         )
 
-        # Y-Achse hübsch formatieren (M:SS,HS) mit festen 10s-Schritten
+        # Y-Achse: 10-Sekunden-Schritte
         if not gefiltert["sekunden"].dropna().empty:
             min_val = gefiltert["sekunden"].min()
             max_val = gefiltert["sekunden"].max()
 
-            # Immer etwas Puffer einbauen
-            min_tick = math.floor(min_val / 10) * 10
-            max_tick = math.ceil(max_val / 10) * 10
+            # etwas Puffer (z. B. 5 Sekunden)
+            min_tick = math.floor((min_val - 5) / 10) * 10
+            max_tick = math.ceil((max_val + 5) / 10) * 10
 
             tick_vals = list(range(min_tick, max_tick + 10, 10))
             tick_texts = [sekunden_zu_format(v) for v in tick_vals]
@@ -133,7 +138,6 @@ if uploaded_file:
                 ticktext=tick_texts
             )
 
-
         fig.update_xaxes(title="Jahr - Rennen")
         st.plotly_chart(fig, use_container_width=True)
 
@@ -142,3 +146,4 @@ if uploaded_file:
         st.dataframe(
             gefiltert[["sportler", "wettkampfjahr", "wettkampf", "rennen", "strecke", "anzeigezeit", "platz"]]
         )
+
