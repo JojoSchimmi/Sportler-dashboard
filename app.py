@@ -90,27 +90,39 @@ if uploaded_file:
     if gefiltert.empty:
         st.warning("⚠️ Keine Daten für diese Auswahl gefunden.")
     else:
-        # Hilfsspalte für X-Achse (Jahr - Rennen)
         gefiltert = gefiltert.copy()
 
-        # Sortierreihenfolge für Rennen
-        rennen_order = {"Vorlauf": 1, "Zwischenlauf": 2, "Endlauf": 3}
-
-        gefiltert["rennen_sort"] = gefiltert["rennen"].map(rennen_order).fillna(99)
-        gefiltert = gefiltert.sort_values(["wettkampfjahr", "rennen_sort", "rennen"])
-
-        # X-Achse: Jahr - Rennen
-        gefiltert["jahr_rennen"] = gefiltert["wettkampfjahr"].astype(str) + " - " + gefiltert["rennen"].astype(str)
-        gefiltert["jahr_rennen"] = pd.Categorical(
-            gefiltert["jahr_rennen"],
-            categories=gefiltert["jahr_rennen"].unique(),
-            ordered=True
+        # --- NEU: Auswahl Vergleichsmodus ---
+        vergleichsmodus = st.radio(
+            "Vergleichsmodus wählen:",
+            ["Nach Jahr", "Nach Altersklasse (AK)"],
+            horizontal=True
         )
+
+        if vergleichsmodus == "Nach Altersklasse (AK)":
+            # X-Achse = Altersklasse
+            gefiltert["x_achse"] = gefiltert["ak"].astype(str)
+            x_label = "Altersklasse (AK)"
+        else:
+            # Sortierreihenfolge für Rennen
+            rennen_order = {"Vorlauf": 1, "Zwischenlauf": 2, "Endlauf": 3}
+            gefiltert["rennen_sort"] = gefiltert["rennen"].map(rennen_order).fillna(99)
+            gefiltert = gefiltert.sort_values(["wettkampfjahr", "rennen_sort", "rennen"])
+
+            # X-Achse = Jahr - Rennen
+            gefiltert["x_achse"] = gefiltert["wettkampfjahr"].astype(str) + " - " + gefiltert["rennen"].astype(str)
+            gefiltert["x_achse"] = pd.Categorical(
+                gefiltert["x_achse"],
+                categories=gefiltert["x_achse"].unique(),
+                ordered=True
+            )
+            x_label = "Jahr - Rennen"
+
 
         # Plot: Scatter (Farbe = Sportler, Symbol = Wettkampf)
         fig = px.scatter(
             gefiltert,
-            x="jahr_rennen",
+            x="x_achse",
             y="sekunden",
             color="sportler",        # Farbe = Sportler
             symbol="wettkampf",      # Markerform = Wettkampf
@@ -138,7 +150,7 @@ if uploaded_file:
                 ticktext=tick_texts
             )
 
-        fig.update_xaxes(title="Jahr - Rennen")
+        fig.update_xaxes(title=x_label)
         st.plotly_chart(fig, use_container_width=True)
 
         # Tabelle darunter
