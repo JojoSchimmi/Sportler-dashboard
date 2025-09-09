@@ -26,22 +26,11 @@ if uploaded_file:
     # Spaltennamen vereinheitlichen
     df.columns = df.columns.str.strip().str.lower()
 
-    # Erwartete Spalten
-    benoetigte_spalten = {"sportler", "wettkampfjahr", "wettkampf", "rennen", "strecke", "zeit", "platz"}
-    if not benoetigte_spalten.issubset(df.columns):
-        st.error(
-            f"⚠️ Im Sheet '{active_sheet}' fehlen benötigte Spalten.\n"
-            f"Gefundene Spalten: {list(df.columns)}\n"
-            f"Erwartet werden mindestens: {list(benoetigte_spalten)}"
-        )
-        st.stop()
-
     # Hilfsfunktionen
     def zeit_zu_sekunden(zeit):
         try:
             if isinstance(zeit, (int, float)) and not math.isnan(zeit):
                 return float(zeit) * 24 * 3600  # Excel: 1 Tag = 1.0
-
             s = str(zeit).replace(",", ".")
             teile = s.split(":")
             if len(teile) == 2:
@@ -51,7 +40,7 @@ if uploaded_file:
                 h, m, sec = teile
                 return int(h) * 3600 + int(m) * 60 + float(sec)
             else:
-                return None
+                return float(s) if s.replace(".", "", 1).isdigit() else None
         except:
             return None
 
@@ -63,99 +52,116 @@ if uploaded_file:
         hs = int(round((sek - int(sek)) * 100))
         return f"{m}:{s:02d},{hs:02d}"
 
-    # Neue Spalten
-    df["sekunden"] = df["zeit"].apply(zeit_zu_sekunden)
-    df["anzeigezeit"] = df["sekunden"].apply(sekunden_zu_format)
+    # --- Logik für Ergebnisse ---
+    if active_sheet.lower() == "ergebnisse":
+        benoetigte_spalten = {"sportler", "wettkampfjahr", "wettkampf", "rennen", "strecke", "zeit", "platz"}
+        if not benoetigte_spalten.issubset(df.columns):
+            st.error(f"⚠️ Im Sheet '{active_sheet}' fehlen benötigte Spalten.\nGefunden: {list(df.columns)}")
+            st.stop()
 
-    # Filter-Optionen
-    sportler_liste = sorted(df["sportler"].dropna().unique())
-    wettkampf_liste = sorted(df["wettkampf"].dropna().unique())
-    strecke_liste = sorted(df["strecke"].dropna().unique())
-    jahr_liste = sorted(df["wettkampfjahr"].dropna().unique())
+        # Zeitspalten aufbereiten
+        df["sekunden"] = df["zeit"].apply(zeit_zu_sekunden)
+        df["anzeigezeit"] = df["sekunden"].apply(sekunden_zu_format)
 
-    # Mehrfachauswahl Sportler
-    sportler = st.multiselect("Sportler/Boot wählen", sportler_liste, default=sportler_liste[:1])
-    wettkampf = st.multiselect("Wettkampf wählen", wettkampf_liste, default=wettkampf_liste)
-    strecke = st.multiselect("Strecke wählen", strecke_liste, default=strecke_liste)
-    jahr = st.multiselect("Jahr wählen", jahr_liste, default=jahr_liste)
+        # Filter
+        sportler_liste = sorted(df["sportler"].dropna().unique())
+        sportler = st.multiselect("Sportler wählen", sportler_liste, default=sportler_liste[:1])
+        wettkampf = st.multiselect("Wettkampf wählen", sorted(df["wettkampf"].dropna().unique()))
+        strecke = st.multiselect("Strecke wählen", sorted(df["strecke"].dropna().unique()))
+        jahr = st.multiselect("Jahr wählen", sorted(df["wettkampfjahr"].dropna().unique()))
 
-    # Daten filtern
-    gefiltert = df[
-        (df["sportler"].isin(sportler)) &
-        (df["wettkampf"].isin(wettkampf)) &
-        (df["strecke"].isin(strecke)) &
-        (df["wettkampfjahr"].isin(jahr))
-    ]
+        gefiltert = df[
+            (df["sportler"].isin(sportler))
+            & (df["wettkampf"].isin(wettkampf) if wettkampf else True)
+            & (df["strecke"].isin(strecke) if strecke else True)
+            & (df["wettkampfjahr"].isin(jahr) if jahr else True)
+        ].copy()
 
-    if gefiltert.empty:
-        st.warning("⚠️ Keine Daten für diese Auswahl gefunden.")
-    else:
-        gefiltert = gefiltert.copy()
-
-        # --- NEU: Auswahl Vergleichsmodus ---
-        vergleichsmodus = st.radio(
-            "Vergleichsmodus wählen:",
-            ["Nach Jahr", "Nach Altersklasse (AK)"],
-            horizontal=True
-        )
-
-        if vergleichsmodus == "Nach Altersklasse (AK)":
-            # X-Achse = Altersklasse
-            gefiltert["x_achse"] = gefiltert["ak"].astype(str)
-            x_label = "Altersklasse (AK)"
+        if gefiltert.empty:
+            st.warning("⚠️ Keine Daten für diese Auswahl gefunden.")
         else:
-            # Sortierreihenfolge für Rennen
+            # X-Achse sortieren: Jahr + Rennen
             rennen_order = {"Vorlauf": 1, "Zwischenlauf": 2, "Endlauf": 3}
             gefiltert["rennen_sort"] = gefiltert["rennen"].map(rennen_order).fillna(99)
             gefiltert = gefiltert.sort_values(["wettkampfjahr", "rennen_sort", "rennen"])
-
-            # X-Achse = Jahr - Rennen
-            gefiltert["x_achse"] = gefiltert["wettkampfjahr"].astype(str) + " - " + gefiltert["rennen"].astype(str)
-            gefiltert["x_achse"] = pd.Categorical(
-                gefiltert["x_achse"],
-                categories=gefiltert["x_achse"].unique(),
+            gefiltert["jahr_rennen"] = gefiltert["wettkampfjahr"].astype(str) + " - " + gefiltert["rennen"].astype(str)
+            gefiltert["jahr_rennen"] = pd.Categorical(
+                gefiltert["jahr_rennen"],
+                categories=gefiltert["jahr_rennen"].unique(),
                 ordered=True
             )
-            x_label = "Jahr - Rennen"
 
-
-        # Plot: Scatter (Farbe = Sportler, Symbol = Wettkampf)
-        fig = px.scatter(
-            gefiltert,
-            x="x_achse",
-            y="sekunden",
-            color="sportler",        # Farbe = Sportler
-            symbol="wettkampf",      # Markerform = Wettkampf
-            hover_data=["sportler", "anzeigezeit", "platz", "strecke", "wettkampfjahr", "rennen"],
-            title=f"Leistungsentwicklung ({active_sheet})"
-        )
-
-        # Y-Achse: 10-Sekunden-Schritte
-        if not gefiltert["sekunden"].dropna().empty:
-            min_val = gefiltert["sekunden"].min()
-            max_val = gefiltert["sekunden"].max()
-
-            # etwas Puffer (z. B. 5 Sekunden)
-            min_tick = math.floor((min_val - 5) / 10) * 10
-            max_tick = math.ceil((max_val + 5) / 10) * 10
-
-            tick_vals = list(range(min_tick, max_tick + 10, 10))
+            # Plot
+            fig = px.scatter(
+                gefiltert,
+                x="jahr_rennen",
+                y="sekunden",
+                color="sportler",
+                symbol="wettkampf",
+                hover_data=["anzeigezeit", "platz", "strecke", "wettkampfjahr", "rennen"],
+                title=f"Leistungsentwicklung (Ergebnisse)"
+            )
+            # Y-Achse in 10s-Schritten
+            ymin, ymax = gefiltert["sekunden"].min(), gefiltert["sekunden"].max()
+            tick_vals = list(range(int(ymin // 10 * 10), int(ymax // 10 * 10 + 20), 10))
             tick_texts = [sekunden_zu_format(v) for v in tick_vals]
+            fig.update_yaxes(title="Zeit (M:SS,HS)", autorange="reversed",
+                             tickmode="array", tickvals=tick_vals, ticktext=tick_texts)
+            st.plotly_chart(fig, use_container_width=True)
 
-            fig.update_yaxes(
-                title="Zeit (min:sek,hundertstel)",
-                autorange="reversed",
-                tickmode="array",
-                tickvals=tick_vals,
-                ticktext=tick_texts
+            st.subheader("📋 Gefilterte Daten")
+            st.dataframe(gefiltert[["sportler", "ak", "wettkampfjahr", "wettkampf", "rennen", "strecke", "anzeigezeit", "platz"]])
+
+    # --- Logik für KMK ---
+    elif active_sheet.lower() == "kmk":
+        benoetigte_spalten = {"sportler", "wettkampfjahr", "wettkampf", "rennen", "kmk-disziplin", "kmk-ergebnis", "kmk-platz"}
+        if not benoetigte_spalten.issubset(df.columns):
+            st.error(f"⚠️ Im Sheet '{active_sheet}' fehlen benötigte Spalten.\nGefunden: {list(df.columns)}")
+            st.stop()
+
+        # Spalten vereinheitlichen
+        df = df.rename(columns={
+            "kmk-disziplin": "disziplin",
+            "kmk-ergebnis": "ergebnis",
+            "kmk-platz": "platz",
+            "altersklasse": "ak"
+        })
+        df["anzeige_ergebnis"] = df["ergebnis"].astype(str) + " " + df["einheit"].fillna("")
+
+        # Filter
+        sportler_liste = sorted(df["sportler"].dropna().unique())
+        sportler = st.multiselect("Sportler wählen", sportler_liste, default=sportler_liste[:1])
+        disziplin = st.multiselect("Disziplin wählen", sorted(df["disziplin"].dropna().unique()))
+        jahr = st.multiselect("Jahr wählen", sorted(df["wettkampfjahr"].dropna().unique()))
+
+        gefiltert = df[
+            (df["sportler"].isin(sportler))
+            & (df["disziplin"].isin(disziplin) if disziplin else True)
+            & (df["wettkampfjahr"].isin(jahr) if jahr else True)
+        ].copy()
+
+        if gefiltert.empty:
+            st.warning("⚠️ Keine Daten für diese Auswahl gefunden.")
+        else:
+            # X-Achse bauen
+            gefiltert["jahr_rennen"] = gefiltert["wettkampfjahr"].astype(str) + " - " + gefiltert["rennen"].astype(str)
+            gefiltert["jahr_rennen"] = pd.Categorical(
+                gefiltert["jahr_rennen"],
+                categories=gefiltert["jahr_rennen"].unique(),
+                ordered=True
             )
 
-        fig.update_xaxes(title=x_label)
-        st.plotly_chart(fig, use_container_width=True)
+            # Plot
+            fig = px.scatter(
+                gefiltert,
+                x="jahr_rennen",
+                y="ergebnis",
+                color="sportler",
+                symbol="disziplin",
+                hover_data=["anzeige_ergebnis", "platz", "wettkampfjahr", "rennen"],
+                title=f"KMK-Leistungsentwicklung"
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-        # Tabelle darunter
-        st.subheader("📋 Gefilterte Daten")
-        st.dataframe(
-            gefiltert[["sportler", "wettkampfjahr", "wettkampf", "rennen", "strecke", "anzeigezeit", "platz"]]
-        )
-
+            st.subheader("📋 Gefilterte Daten")
+            st.dataframe(gefiltert[["sportler", "ak", "wettkampfjahr", "wettkampf", "rennen", "disziplin", "anzeige_ergebnis", "platz"]])
