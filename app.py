@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import math
+import numpy as np
 
 st.set_page_config(page_title="Leistungsentwicklung Sportler", layout="wide")
 st.title("📊 Leistungsentwicklung im Kanu-Rennsport")
@@ -166,40 +167,42 @@ if uploaded_file:
                 title=f"KMK-Leistungsentwicklung"
             )
 
-            # --- Y-Achsen-Anpassung je nach Disziplin ---
-            for dis in gefiltert["disziplin"].unique():
-                einheit = gefiltert.loc[gefiltert["disziplin"] == dis, "einheit"].iloc[0].lower()
-                ymin, ymax = gefiltert.loc[gefiltert["disziplin"] == dis, "ergebnis_num"].min(), gefiltert.loc[gefiltert["disziplin"] == dis, "ergebnis_num"].max()
-
-                if "1500" in dis or "1000" in dis:
-                    step = 10
-                elif "30" in dis and "sprint" in dis.lower():
-                    step = 1
-                elif "agility" in dis.lower():
-                    step = 1
-                elif "100" in dis and "paddel" in dis.lower():
-                    step = 5
-                elif "balldruckwurf" in dis.lower():
-                    step = 5
-                elif "standweitsprung" in dis.lower():
-                    step = 0.1
-                else:
-                    step = (ymax - ymin) / 10 if ymax > ymin else 1
-
-                # Tickwerte berechnen
-                if step >= 1:
-                    tick_vals = list(range(int(ymin // step * step), int(ymax // step * step + 2 * step), step))
-                else:
-                    tick_vals = [round(v, 1) for v in list(
-                        pd.interval_range(start=ymin, end=ymax + step, freq=step).left
-                    )]
-
-                fig.update_yaxes(
-                    tickmode="array",
-                    tickvals=tick_vals,
-                    title=f"Ergebnis ({einheit})",
-                    autorange=False
-                )
+        # --- Y-Achsen-Anpassung je nach Disziplin ---
+        for dis in gefiltert["disziplin"].unique():
+            einheit = gefiltert.loc[gefiltert["disziplin"] == dis, "einheit"].iloc[0].lower()
+            ymin, ymax = gefiltert.loc[gefiltert["disziplin"] == dis, "ergebnis_num"].min(), gefiltert.loc[gefiltert["disziplin"] == dis, "ergebnis_num"].max()
+        
+            if "1500" in dis or "1000" in dis:
+                step = 10
+            elif "30" in dis and "sprint" in dis.lower():
+                step = 1
+            elif "agility" in dis.lower():
+                step = 1
+            elif "100" in dis and "paddel" in dis.lower():
+                step = 5
+            elif "balldruckwurf" in dis.lower():
+                step = 5
+            elif "standweitsprung" in dis.lower():
+                step = 0.1
+            else:
+                step = (ymax - ymin) / 10 if ymax > ymin else 1
+        
+            # Tickwerte berechnen
+            if step >= 1:
+                start = int((ymin // step) * step)
+                stop = int((ymax // step + 2) * step)
+                tick_vals = list(range(start, stop, int(step)))
+            else:
+                start = round(math.floor(ymin / step) * step, 2)
+                stop = round(math.ceil(ymax / step) * step + step, 2)
+                tick_vals = list(np.arange(start, stop, step).round(2))
+        
+            fig.update_yaxes(
+                tickmode="array",
+                tickvals=tick_vals,
+                title=f"Ergebnis ({einheit})",
+                autorange=False
+            )
 
             st.plotly_chart(fig, use_container_width=True)
 
