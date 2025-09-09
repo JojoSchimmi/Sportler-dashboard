@@ -172,6 +172,7 @@ if uploaded_file:
             einheit = gefiltert.loc[gefiltert["disziplin"] == dis, "einheit"].iloc[0].lower()
             ymin, ymax = gefiltert.loc[gefiltert["disziplin"] == dis, "ergebnis_num"].min(), gefiltert.loc[gefiltert["disziplin"] == dis, "ergebnis_num"].max()
         
+            # Schrittweite je nach Disziplin
             if "1500" in dis or "1000" in dis:
                 step = 10
             elif "30" in dis and "sprint" in dis.lower():
@@ -187,15 +188,12 @@ if uploaded_file:
             else:
                 step = (ymax - ymin) / 10 if ymax > ymin else 1
         
-            # --- Tickwerte berechnen ---
-            if step >= 1:
-                start = (ymin // step) * step
-                stop = (ymax // step + 2) * step
-                tick_vals = list(range(int(start), int(stop), int(step)))
-            else:
-                start = np.floor(ymin / step) * step
-                stop = np.ceil(ymax / step) * step + step
-                tick_vals = list(np.arange(start, stop, step).round(2))
+            # Start & Ende abrunden
+            start = np.floor(ymin / step) * step
+            stop = np.ceil(ymax / step) * step + step
+        
+            # Tick-Werte mit numpy.arange
+            tick_vals = np.arange(start, stop, step).round(2).tolist()
         
             fig.update_yaxes(
                 tickmode="array",
