@@ -126,6 +126,10 @@ if uploaded_file:
             "kmk-platz": "platz",
             "altersklasse": "ak"
         })
+
+        # Ergebnis numerisch erzwingen (falls möglich)
+        df["ergebnis_num"] = pd.to_numeric(df["ergebnis"], errors="coerce")
+
         df["anzeige_ergebnis"] = df["ergebnis"].astype(str) + " " + df["einheit"].fillna("")
 
         # Filter
@@ -155,12 +159,48 @@ if uploaded_file:
             fig = px.scatter(
                 gefiltert,
                 x="jahr_rennen",
-                y="ergebnis",
+                y="ergebnis_num",
                 color="sportler",
                 symbol="disziplin",
                 hover_data=["anzeige_ergebnis", "platz", "wettkampfjahr", "rennen"],
                 title=f"KMK-Leistungsentwicklung"
             )
+
+            # --- Y-Achsen-Anpassung je nach Disziplin ---
+            for dis in gefiltert["disziplin"].unique():
+                einheit = gefiltert.loc[gefiltert["disziplin"] == dis, "einheit"].iloc[0].lower()
+                ymin, ymax = gefiltert.loc[gefiltert["disziplin"] == dis, "ergebnis_num"].min(), gefiltert.loc[gefiltert["disziplin"] == dis, "ergebnis_num"].max()
+
+                if "1500" in dis or "1000" in dis:
+                    step = 10
+                elif "30" in dis and "sprint" in dis.lower():
+                    step = 1
+                elif "agility" in dis.lower():
+                    step = 1
+                elif "100" in dis and "paddel" in dis.lower():
+                    step = 5
+                elif "balldruckwurf" in dis.lower():
+                    step = 5
+                elif "standweitsprung" in dis.lower():
+                    step = 0.1
+                else:
+                    step = (ymax - ymin) / 10 if ymax > ymin else 1
+
+                # Tickwerte berechnen
+                if step >= 1:
+                    tick_vals = list(range(int(ymin // step * step), int(ymax // step * step + 2 * step), step))
+                else:
+                    tick_vals = [round(v, 1) for v in list(
+                        pd.interval_range(start=ymin, end=ymax + step, freq=step).left
+                    )]
+
+                fig.update_yaxes(
+                    tickmode="array",
+                    tickvals=tick_vals,
+                    title=f"Ergebnis ({einheit})",
+                    autorange=False
+                )
+
             st.plotly_chart(fig, use_container_width=True)
 
             st.subheader("📋 Gefilterte Daten")
