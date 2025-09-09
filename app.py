@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import math
-import numpy as np
 
 st.set_page_config(page_title="Leistungsentwicklung Sportler", layout="wide")
 st.title("📊 Leistungsentwicklung im Kanu-Rennsport")
@@ -127,10 +126,6 @@ if uploaded_file:
             "kmk-platz": "platz",
             "altersklasse": "ak"
         })
-
-        # Ergebnis numerisch erzwingen (falls möglich)
-        df["ergebnis_num"] = pd.to_numeric(df["ergebnis"], errors="coerce")
-
         df["anzeige_ergebnis"] = df["ergebnis"].astype(str) + " " + df["einheit"].fillna("")
 
         # Filter
@@ -160,48 +155,12 @@ if uploaded_file:
             fig = px.scatter(
                 gefiltert,
                 x="jahr_rennen",
-                y="ergebnis_num",
+                y="ergebnis",
                 color="sportler",
                 symbol="disziplin",
                 hover_data=["anzeige_ergebnis", "platz", "wettkampfjahr", "rennen"],
                 title=f"KMK-Leistungsentwicklung"
             )
-
-        # --- Y-Achsen-Anpassung je nach Disziplin ---
-        for dis in gefiltert["disziplin"].unique():
-            einheit = gefiltert.loc[gefiltert["disziplin"] == dis, "einheit"].iloc[0].lower()
-            ymin, ymax = gefiltert.loc[gefiltert["disziplin"] == dis, "ergebnis_num"].min(), gefiltert.loc[gefiltert["disziplin"] == dis, "ergebnis_num"].max()
-        
-            # Schrittweite je nach Disziplin
-            if "1500" in dis or "1000" in dis:
-                step = 10
-            elif "30" in dis and "sprint" in dis.lower():
-                step = 1
-            elif "agility" in dis.lower():
-                step = 1
-            elif "100" in dis and "paddel" in dis.lower():
-                step = 5
-            elif "balldruckwurf" in dis.lower():
-                step = 5
-            elif "standweitsprung" in dis.lower():
-                step = 0.1
-            else:
-                step = (ymax - ymin) / 10 if ymax > ymin else 1
-        
-            # Start & Ende abrunden
-            start = np.floor(ymin / step) * step
-            stop = np.ceil(ymax / step) * step + step
-        
-            # Tick-Werte mit numpy.arange
-            tick_vals = np.arange(start, stop, step).round(2).tolist()
-        
-            fig.update_yaxes(
-                tickmode="array",
-                tickvals=tick_vals,
-                title=f"Ergebnis ({einheit})",
-                autorange=False
-            )
-
             st.plotly_chart(fig, use_container_width=True)
 
             st.subheader("📋 Gefilterte Daten")
