@@ -187,14 +187,14 @@ if uploaded_file:
             else:
                 step = (ymax - ymin) / 10 if ymax > ymin else 1
         
-            # Tickwerte berechnen
+            # --- Tickwerte berechnen ---
             if step >= 1:
-                start = int((ymin // step) * step)
-                stop = int((ymax // step + 2) * step)
-                tick_vals = list(range(start, stop, int(step)))
+                start = (ymin // step) * step
+                stop = (ymax // step + 2) * step
+                tick_vals = list(range(int(start), int(stop), int(step)))
             else:
-                start = round(math.floor(ymin / step) * step, 2)
-                stop = round(math.ceil(ymax / step) * step + step, 2)
+                start = np.floor(ymin / step) * step
+                stop = np.ceil(ymax / step) * step + step
                 tick_vals = list(np.arange(start, stop, step).round(2))
         
             fig.update_yaxes(
